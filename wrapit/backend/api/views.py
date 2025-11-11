@@ -52,8 +52,8 @@ def callback(request):
     }
 
     # ✅ Redirect to deep link, not auth.expo.io
-    redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI")
-    redirect_url = f"{redirect_uri}?{urllib.parse.urlencode(params)}"
+    expo_redirect = "https://auth.expo.io/@lincolnhuls/instantwrapped"
+    redirect_url = f"{expo_redirect}?{urllib.parse.urlencode(params)}"
 
     print("Redirecting to:", redirect_url)
     return HttpResponseRedirect(redirect_url)
