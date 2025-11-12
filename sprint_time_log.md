@@ -39,6 +39,8 @@ The expected minimum amount of time each Sprint for each category is as follows:
 | 11/10/2025 | 1:00 PM    |    IM    | Worked on setting up server for app            |      60       |
 | 11/10/2025 | 2:00 PM    |    TP    | Caught up on goals and worked on polishing app |      60       |
 | 11/11/2025 | 4:15 PM    |    IM    | Worked on bug with Render redirect             |      60       |
+| 11/12/2025 | 1:00 PM    |    IM    | Worked on bug with Render redirect again       |      60       |
+| 11/12/2025 | 2:00 PM    |   MTG    | Team Review Meeting                            |      60       |
 
 _Note: Add more rows as needed._
 
