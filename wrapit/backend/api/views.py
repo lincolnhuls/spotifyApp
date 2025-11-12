@@ -37,36 +37,41 @@ def callback(request):
     code = request.GET.get("code")
 
     if not code:
+        print("❌ Missing code in callback request")
         return JsonResponse({"error": "Missing code"}, status=400)
 
+    print("🔁 Received code:", code)
+
     try:
-        # Exchange the authorization code for an access token
-        token_info = sp_oauth.get_access_token(code, check_cache=False)
+        # ✅ Explicitly exchange code for tokens
+        token_info = sp_oauth.get_access_token(code)
+        print("✅ Token exchange successful:", token_info)
     except Exception as e:
+        print("❌ Token exchange failed:", str(e))
         return JsonResponse({"error": f"Token exchange failed: {str(e)}"}, status=400)
 
-    # Extract token data
-    access_token = token_info.get("access_token")
-    refresh_token = token_info.get("refresh_token")
+    # token_info may be None or malformed if exchange failed
+    if not token_info or "access_token" not in token_info:
+        print("❌ No access token returned from Spotify")
+        return JsonResponse({"error": "No access token returned"}, status=400)
+
+    access_token = token_info["access_token"]
+    refresh_token = token_info.get("refresh_token", "")
     expires_in = token_info.get("expires_in")
 
-    if not access_token:
-        return JsonResponse({"error": "No access token returned from Spotify"}, status=400)
-
-    # Build query params to send back to Expo app
     params = {
         "access_token": access_token,
-        "refresh_token": refresh_token or "",
+        "refresh_token": refresh_token,
         "expires_in": expires_in,
         "token_type": "Bearer",
     }
 
-    # ✅ Redirect to Expo deep link
     redirect_uri = "https://auth.expo.io/@lincolnhuls/instantwrapped"
     redirect_url = f"{redirect_uri}?{urllib.parse.urlencode(params)}"
 
     print("✅ Redirecting back to Expo with tokens:", redirect_url)
     return HttpResponseRedirect(redirect_url)
+
 
 
 
