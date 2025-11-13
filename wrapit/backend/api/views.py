@@ -49,13 +49,15 @@ def callback(request):
     print("🔁 Received code:", code)
 
     token_url = "https://accounts.spotify.com/api/token"
-    redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI")  # should be instantwrappedmobile://auth
-    print("🎯 Using redirect_uri:", redirect_uri)
+    backend_redirect_uri = os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")  # ✅ use same URI as login
+    app_redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI")  # ✅ mobile deep link
+
+    print("🎯 Using backend redirect_uri:", backend_redirect_uri)
 
     payload = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": redirect_uri,
+        "redirect_uri": backend_redirect_uri,  # ✅ Must match authorize step
         "client_id": os.getenv("SPOTIPY_CLIENT_ID"),
         "client_secret": os.getenv("SPOTIPY_CLIENT_SECRET"),
     }
@@ -78,17 +80,18 @@ def callback(request):
     refresh_token = token_info.get("refresh_token", "")
     expires_in = token_info.get("expires_in")
 
-    redirect_uri_to_app = redirect_uri
+    # ✅ After successful token exchange, redirect to app deep link
     params = {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "expires_in": expires_in,
         "token_type": "Bearer",
     }
+    redirect_url = f"{app_redirect_uri}?{urllib.parse.urlencode(params)}"
 
-    redirect_url = f"{redirect_uri_to_app}?{urllib.parse.urlencode(params)}"
     print("✅ Redirecting to app:", redirect_url)
     return HttpResponseRedirect(redirect_url)
+
 
 
 
