@@ -42,27 +42,31 @@ def login(request):
     return HttpResponseRedirect(auth_url)
 
 def callback(request):
-    """Handle Spotify redirect and exchange authorization code for tokens."""
     code = request.GET.get("code")
     if not code:
         return JsonResponse({"error": "Missing code"}, status=400)
 
     print("🔁 Received code:", code)
 
-    # Exchange authorization code for access and refresh tokens
     token_url = "https://accounts.spotify.com/api/token"
+    redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI")  # should be instantwrappedmobile://auth
+    print("🎯 Using redirect_uri:", redirect_uri)
+
     payload = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": os.getenv("SPOTIPY_BACKEND_REDIRECT_URI"),  # ✅ backend redirect
+        "redirect_uri": redirect_uri,
         "client_id": os.getenv("SPOTIPY_CLIENT_ID"),
         "client_secret": os.getenv("SPOTIPY_CLIENT_SECRET"),
     }
 
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
     try:
-        response = requests.post(token_url, data=payload)
+        response = requests.post(token_url, data=payload, headers=headers)
+        print("🟢 Token response status:", response.status_code)
+        print("🟢 Token response text:", response.text)
         token_info = response.json()
-        print("🟢 Spotify token response:", token_info)
     except Exception as e:
         print("❌ Token exchange HTTP error:", e)
         return JsonResponse({"error": f"Token exchange failed: {str(e)}"}, status=400)
@@ -70,13 +74,11 @@ def callback(request):
     if "access_token" not in token_info:
         return JsonResponse({"error": "No access token returned", "details": token_info}, status=400)
 
-    # Extract token info
     access_token = token_info["access_token"]
     refresh_token = token_info.get("refresh_token", "")
     expires_in = token_info.get("expires_in")
 
-    # Redirect back to Expo deep link with tokens
-    expo_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
+    redirect_uri_to_app = redirect_uri
     params = {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -84,9 +86,10 @@ def callback(request):
         "token_type": "Bearer",
     }
 
-    redirect_url = f"{expo_redirect}?{urllib.parse.urlencode(params)}"
-    print("✅ Redirecting to Expo:", redirect_url)
+    redirect_url = f"{redirect_uri_to_app}?{urllib.parse.urlencode(params)}"
+    print("✅ Redirecting to app:", redirect_url)
     return HttpResponseRedirect(redirect_url)
+
 
 # ========== Spotify Data Endpoints ==========
 
