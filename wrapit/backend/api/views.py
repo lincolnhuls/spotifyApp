@@ -15,7 +15,7 @@ def get_spotify_oauth():
     return SpotifyOAuth(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
-        redirect_uri=os.getenv("SPOTIPY_BACKEND_REDIRECT_URI"),  # ✅ backend redirect
+        redirect_uri=os.getenv("SPOTIPY_BACKEND_REDIRECT_URI"),  # backend redirect
         scope=os.getenv("SPOTIPY_SCOPE"),
     )
 
@@ -37,9 +37,19 @@ def login(request):
     """Start Spotify login by redirecting to Spotify's authorization page."""
     sp_oauth = get_spotify_oauth()
     auth_url = sp_oauth.get_authorize_url()
-    print("🎵 Using backend redirect URI:", os.getenv("SPOTIPY_BACKEND_REDIRECT_URI"))
+
+    # Add Expo redirect override
+    expo_redirect = request.GET.get("redirect_uri")
+    if expo_redirect:
+        auth_url += "&redirect_uri=" + urllib.parse.quote(
+            os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")
+        )
+
+        print("📱 Expo browser login – backend redirect forced")
+
     print("➡️ Redirecting user to Spotify:", auth_url)
     return HttpResponseRedirect(auth_url)
+
 
 def callback(request):
     code = request.GET.get("code")
@@ -48,16 +58,28 @@ def callback(request):
 
     print("🔁 Received code:", code)
 
+    # ======================================================
+    # 🔥 Allow Expo to override redirect (browser login)
+    # ======================================================
+    redirect_override = request.GET.get("redirect_uri")
+
+    if redirect_override:
+        print("📱 Overriding redirect to:", redirect_override)
+        frontend_redirect = redirect_override
+    else:
+        frontend_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
+        print("🎯 Using default frontend redirect:", frontend_redirect)
+
+    # ======================================================
+    # 🎯 Spotify token request uses backend redirect
+    # ======================================================
+    backend_redirect_uri = os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")
+
     token_url = "https://accounts.spotify.com/api/token"
-    backend_redirect_uri = os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")  # ✅ use same URI as login
-    app_redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI")  # ✅ mobile deep link
-
-    print("🎯 Using backend redirect_uri:", backend_redirect_uri)
-
     payload = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": backend_redirect_uri,  # ✅ Must match authorize step
+        "redirect_uri": backend_redirect_uri,
         "client_id": os.getenv("SPOTIPY_CLIENT_ID"),
         "client_secret": os.getenv("SPOTIPY_CLIENT_SECRET"),
     }
@@ -70,35 +92,38 @@ def callback(request):
         print("🟢 Token response text:", response.text)
         token_info = response.json()
     except Exception as e:
-        print("❌ Token exchange HTTP error:", e)
         return JsonResponse({"error": f"Token exchange failed: {str(e)}"}, status=400)
 
     if "access_token" not in token_info:
-        return JsonResponse({"error": "No access token returned", "details": token_info}, status=400)
+        return JsonResponse(
+            {"error": "No access token returned", "details": token_info}, status=400
+        )
 
+    # ======================================================
+    # Extract tokens
+    # ======================================================
     access_token = token_info["access_token"]
     refresh_token = token_info.get("refresh_token", "")
     expires_in = token_info.get("expires_in")
 
-    # ✅ After successful token exchange, redirect to app deep link
+    # ======================================================
+    # Redirect back to Expo or Installed App
+    # ======================================================
     params = {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "expires_in": expires_in,
         "token_type": "Bearer",
     }
-    redirect_url = f"{app_redirect_uri}?{urllib.parse.urlencode(params)}"
 
+    redirect_url = f"{frontend_redirect}?{urllib.parse.urlencode(params)}"
     print("✅ Redirecting to app:", redirect_url)
+
     return HttpResponseRedirect(redirect_url)
-
-
-
 
 # ========== Spotify Data Endpoints ==========
 
 def top_tracks(request):
-    """Fetch user's top tracks."""
     sp = get_spotipy_client(request)
     if sp is None:
         return JsonResponse({"error": "User not authenticated"}, status=401)
@@ -117,8 +142,8 @@ def top_tracks(request):
 
     return JsonResponse({"top_tracks": tracks})
 
+
 def top_artists(request):
-    """Fetch user's top artists based on top tracks."""
     sp = get_spotipy_client(request)
     if sp is None:
         return JsonResponse({"error": "User not authenticated"}, status=401)

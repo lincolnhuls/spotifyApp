@@ -116,58 +116,78 @@
 // });
 
 
-import React, { useEffect } from "react";
-import { View, Text, Button, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Button, StyleSheet, ActivityIndicator, Image } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri, useAuthRequest, AuthSessionResult } from "expo-auth-session";
+import { useAuthRequest, makeRedirectUri } from "expo-auth-session";
+import * as Linking from "expo-linking";       // ✅ FIXED
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function HomeScreen() {
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Deployed backend (Render)
+  // ✔ Backend URL
   const backendUrl = "https://spotifyapp-7lsn.onrender.com";
 
-  // ⚡ Native deep link back into your app (must match app.json "scheme")
-  const redirectUri = makeRedirectUri({ scheme: "instantwrappedmobile" });
-  console.log("👉 Redirect URI being used:", redirectUri); // should print: instantwrappedmobile://auth
+  // ✔ Redirect URI with scheme from app.json
+  const redirectUri = makeRedirectUri({
+    scheme: "instantwrappedmobile",
+  });
 
+  console.log("👉 Using redirect URI:", redirectUri);
+
+  // ✔ Build auth request (backend handles real OAuth)
   const [request, response, promptAsync] = useAuthRequest(
     {
-      clientId: "dummy-client-id", // backend does auth
-      redirectUri,                 // our deep link (not the Expo proxy)
+      clientId: "dummy-client-id",
+      redirectUri,
       scopes: [],
     },
-    { authorizationEndpoint: `${backendUrl}/api/login/` }
+    {
+      authorizationEndpoint: `${backendUrl}/api/login/`,
+    }
   );
 
+  // -------------------------------------------------------
+  // 🔗 Handle deep link callback
+  // -------------------------------------------------------
+  const incomingUrl = Linking.useURL();   // ✅ FIXED
+
   useEffect(() => {
-    const handleResponse = async () => {
-      if (response?.type === "success" && response.params.access_token) {
-        const { access_token, refresh_token, expires_in } = response.params;
-        const expiresInSeconds = Number(expires_in) || 3600;
+    if (!incomingUrl) return;
 
-        console.log("✅ Tokens received:", { access_token, refresh_token, expires_in });
+    console.log("🔗 Deep link triggered:", incomingUrl);
 
-        await AsyncStorage.setItem("spotify_access_token", access_token);
-        await AsyncStorage.setItem("spotify_refresh_token", refresh_token || "");
-        await AsyncStorage.setItem("spotify_expires_in", String(Date.now() + expiresInSeconds * 1000));
+    if (!incomingUrl.includes("access_token=")) return;
 
-        router.push("/dashboard");
-      }
-    };
-    handleResponse();
-  }, [response]);
+    const urlObj = new URL(incomingUrl);
+    const access_token = urlObj.searchParams.get("access_token");
+    const refresh_token = urlObj.searchParams.get("refresh_token");
+    const expires_in = urlObj.searchParams.get("expires_in");
 
+    if (access_token) {
+      AsyncStorage.setItem("spotify_access_token", access_token);
+      AsyncStorage.setItem("spotify_refresh_token", refresh_token ?? "");
+      AsyncStorage.setItem(
+        "spotify_expires_in",
+        String(Date.now() + Number(expires_in) * 1000)
+      );
+
+      console.log("🎉 Stored tokens — navigating to dashboard");
+      router.push("/dashboard");
+    }
+  }, [incomingUrl]);
+
+  // -------------------------------------------------------
+  // 🔘 Open Spotify login
+  // -------------------------------------------------------
   const handleLogin = async () => {
     setLoading(true);
     try {
-      // No useProxy arg (keeps TS happy). The backend will redirect to our scheme.
-      const result: AuthSessionResult = await promptAsync();
-      console.log("Auth session result:", result);
+      await promptAsync();
     } catch (err) {
       console.error("Login error:", err);
     } finally {
@@ -177,17 +197,53 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Instant Wrapped</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color="#1DB954" />
-      ) : (
-        <Button title="Connect with Spotify" color="#1DB954" onPress={handleLogin} />
-      )}
+      <Image
+        source={require("../assets/images/wrapit-banner.png")}
+        style={styles.background}
+        resizeMode="contain"
+      />
+
+      <View style={styles.overlay}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#1DB954" />
+        ) : (
+          <View style={styles.buttonContainer}>
+            <Button title="Connect with Spotify" color="#1DB954" onPress={handleLogin} />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
+// -------------------------------------------------------
+// 🎨 Styles preserved exactly as your custom design
+// -------------------------------------------------------
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#121212", justifyContent: "center", alignItems: "center" },
-  title: { color: "white", fontSize: 28, fontWeight: "bold", marginBottom: 40 },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  background: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    zIndex: -1,
+    backgroundColor: "#000",
+  },
+  overlay: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: 40,
+  },
+  buttonContainer: {
+    width: "80%",
+    marginBottom: 30,
+  },
 });
+
