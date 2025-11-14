@@ -59,16 +59,15 @@ def callback(request):
     print("🔁 Received code:", code)
 
     # ======================================================
-    # 🔥 Allow Expo to override redirect (browser login)
+    # 🔄 Which URL do we send the user back to?
     # ======================================================
-    redirect_override = request.GET.get("redirect_uri")
-
-    if redirect_override:
-        print("📱 Overriding redirect to:", redirect_override)
-        frontend_redirect = redirect_override
-    else:
+    frontend_redirect = request.GET.get("redirect_uri")
+    
+    # If NOTHING was given by Expo → use the mobile deep link
+    if not frontend_redirect:
         frontend_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
-        print("🎯 Using default frontend redirect:", frontend_redirect)
+    
+    print("🎯 Final frontend redirect:", frontend_redirect)
 
     # ======================================================
     # 🎯 Spotify token request uses backend redirect
