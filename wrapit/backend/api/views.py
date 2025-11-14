@@ -34,21 +34,12 @@ def ping(request):
 # ========== OAuth Flow ==========
 
 def login(request):
-    """Start Spotify login by redirecting to Spotify's authorization page."""
     sp_oauth = get_spotify_oauth()
     auth_url = sp_oauth.get_authorize_url()
 
-    # Add Expo redirect override
-    expo_redirect = request.GET.get("redirect_uri")
-    if expo_redirect:
-        auth_url += "&redirect_uri=" + urllib.parse.quote(
-            os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")
-        )
-
-        print("📱 Expo browser login – backend redirect forced")
-
     print("➡️ Redirecting user to Spotify:", auth_url)
     return HttpResponseRedirect(auth_url)
+
 
 
 def callback(request):
@@ -62,11 +53,11 @@ def callback(request):
     # 🔄 Which URL do we send the user back to?
     # ======================================================
     frontend_redirect = request.GET.get("redirect_uri")
-    
+
     # If NOTHING was given by Expo → use the mobile deep link
     if not frontend_redirect:
         frontend_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
-    
+
     print("🎯 Final frontend redirect:", frontend_redirect)
 
     # ======================================================
