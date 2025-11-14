@@ -41,7 +41,6 @@ def login(request):
     return HttpResponseRedirect(auth_url)
 
 
-
 def callback(request):
     code = request.GET.get("code")
     if not code:
@@ -49,67 +48,38 @@ def callback(request):
 
     print("🔁 Received code:", code)
 
-    # ======================================================
-    # 🔄 Which URL do we send the user back to?
-    # ======================================================
-    frontend_redirect = request.GET.get("redirect_uri")
-
-    # If NOTHING was given by Expo → use the mobile deep link
-    if not frontend_redirect:
-        frontend_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
-
-    print("🎯 Final frontend redirect:", frontend_redirect)
-
-    # ======================================================
-    # 🎯 Spotify token request uses backend redirect
-    # ======================================================
-    backend_redirect_uri = os.getenv("SPOTIPY_BACKEND_REDIRECT_URI")
-
-    token_url = "https://accounts.spotify.com/api/token"
-    payload = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": backend_redirect_uri,
-        "client_id": os.getenv("SPOTIPY_CLIENT_ID"),
-        "client_secret": os.getenv("SPOTIPY_CLIENT_SECRET"),
-    }
-
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
+    # Exchange code for tokens
+    sp_oauth = get_spotify_oauth()
     try:
-        response = requests.post(token_url, data=payload, headers=headers)
-        print("🟢 Token response status:", response.status_code)
-        print("🟢 Token response text:", response.text)
-        token_info = response.json()
+        token_info = sp_oauth.get_access_token(code, check_cache=False)
     except Exception as e:
         return JsonResponse({"error": f"Token exchange failed: {str(e)}"}, status=400)
 
     if "access_token" not in token_info:
         return JsonResponse(
-            {"error": "No access token returned", "details": token_info}, status=400
+            {"error": "No access token", "details": token_info},
+            status=400,
         )
 
-    # ======================================================
-    # Extract tokens
-    # ======================================================
     access_token = token_info["access_token"]
     refresh_token = token_info.get("refresh_token", "")
     expires_in = token_info.get("expires_in")
 
-    # ======================================================
-    # Redirect back to Expo or Installed App
-    # ======================================================
-    params = {
+    # Mobile app redirect (deep link)
+    frontend_redirect = os.getenv("SPOTIPY_REDIRECT_URI")
+
+    params = urllib.parse.urlencode({
         "access_token": access_token,
         "refresh_token": refresh_token,
         "expires_in": expires_in,
         "token_type": "Bearer",
-    }
+    })
 
-    redirect_url = f"{frontend_redirect}?{urllib.parse.urlencode(params)}"
-    print("✅ Redirecting to app:", redirect_url)
+    final_url = f"{frontend_redirect}?{params}"
 
-    return HttpResponseRedirect(redirect_url)
+    print("🎯 Redirecting back to mobile app:", final_url)
+
+    return HttpResponseRedirect(final_url)
 
 # ========== Spotify Data Endpoints ==========
 
