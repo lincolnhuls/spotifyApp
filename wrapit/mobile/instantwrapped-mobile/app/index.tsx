@@ -135,7 +135,10 @@ export default function HomeScreen() {
   // ✔ Redirect URI with scheme from app.json
   const redirectUri = makeRedirectUri({
     scheme: "instantwrappedmobile",
+    path: "auth",   // VERY IMPORTANT
+    preferLocalhost: false, // avoids exp:// fallback on device
   });
+
 
   console.log("👉 Using redirect URI:", redirectUri);
 
